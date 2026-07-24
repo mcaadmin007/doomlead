@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { CREDIT_PACKAGES } from '@/lib/omise'
+import { CREDIT_PACKAGES } from '@/lib/credit-packages'
 
 type PkgId = (typeof CREDIT_PACKAGES)[number]['id']
 
@@ -17,7 +17,6 @@ export default function CreditsPage() {
 
   const selectedPkg = CREDIT_PACKAGES.find((p) => p.id === selected)
 
-  // Poll สถานะ PromptPay ทุก 3 วินาที
   useEffect(() => {
     if (!chargeId || success) return
 
@@ -78,13 +77,11 @@ export default function CreditsPage() {
 
   return (
     <div className="max-w-3xl mx-auto px-6 py-8">
-      {/* Header */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold tracking-tight mb-1">ซื้อเครดิต</h1>
         <p className="text-sm text-zinc-500">เครดิตไม่มีวันหมดอายุ — ใช้เมื่อไหร่ก็ได้</p>
       </div>
 
-      {/* Success */}
       {success && (
         <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-8 text-center mb-6">
           <div className="text-4xl mb-3">✅</div>
@@ -101,26 +98,18 @@ export default function CreditsPage() {
         </div>
       )}
 
-      {/* QR Code */}
       {qrCode && !success && (
         <div className="bg-white border border-zinc-200 rounded-xl p-6 text-center mb-6">
           <p className="font-semibold mb-1">สแกน QR Code เพื่อชำระเงิน</p>
           <p className="text-sm text-zinc-500 mb-4">
             ฿{selectedPkg?.price_thb.toLocaleString()} · เครดิตจะถูกเพิ่มอัตโนมัติหลังชำระ
           </p>
-          <img
-            src={qrCode}
-            alt="PromptPay QR Code"
-            className="mx-auto w-56 h-56 border border-zinc-100 rounded-lg"
-          />
+          <img src={qrCode} alt="PromptPay QR Code" className="mx-auto w-56 h-56 border border-zinc-100 rounded-lg" />
           <div className="flex items-center justify-center gap-1.5 mt-4 text-zinc-400 text-xs">
             <span className="w-3 h-3 border-2 border-zinc-300 border-t-zinc-600 rounded-full animate-spin" />
             รอการยืนยันชำระเงิน... (QR หมดอายุใน 15 นาที)
           </div>
-          <button
-            onClick={resetPayment}
-            className="mt-4 text-xs text-zinc-400 hover:text-black underline underline-offset-2"
-          >
+          <button onClick={resetPayment} className="mt-4 text-xs text-zinc-400 hover:text-black underline underline-offset-2">
             ยกเลิก
           </button>
         </div>
@@ -128,35 +117,26 @@ export default function CreditsPage() {
 
       {!success && !qrCode && (
         <>
-          {/* Package grid */}
           <div className="grid grid-cols-2 gap-3 mb-6">
             {CREDIT_PACKAGES.map((pkg) => (
               <button
                 key={pkg.id}
                 onClick={() => setSelected(pkg.id as PkgId)}
                 className={`relative border rounded-xl p-5 text-left transition-all ${
-                  selected === pkg.id
-                    ? 'border-black bg-black text-white'
-                    : 'border-zinc-200 bg-white hover:border-zinc-400'
+                  selected === pkg.id ? 'border-black bg-black text-white' : 'border-zinc-200 bg-white hover:border-zinc-400'
                 }`}
               >
                 {pkg.popular && (
-                  <span
-                    className={`absolute -top-2.5 left-4 text-xs font-semibold px-2 py-0.5 rounded-full ${
-                      selected === pkg.id ? 'bg-white text-black' : 'bg-black text-white'
-                    }`}
-                  >
+                  <span className={`absolute -top-2.5 left-4 text-xs font-semibold px-2 py-0.5 rounded-full ${
+                    selected === pkg.id ? 'bg-white text-black' : 'bg-black text-white'
+                  }`}>
                     ⭐ ยอดนิยม
                   </span>
                 )}
-                <p className={`text-sm font-semibold mb-2 ${selected === pkg.id ? 'text-zinc-300' : 'text-zinc-500'}`}>
-                  {pkg.name}
-                </p>
+                <p className={`text-sm font-semibold mb-2 ${selected === pkg.id ? 'text-zinc-300' : 'text-zinc-500'}`}>{pkg.name}</p>
                 <p className="text-2xl font-bold tracking-tight">
                   {pkg.credits.toLocaleString()}
-                  <span className={`text-sm font-normal ml-1 ${selected === pkg.id ? 'text-zinc-300' : 'text-zinc-500'}`}>
-                    เครดิต
-                  </span>
+                  <span className={`text-sm font-normal ml-1 ${selected === pkg.id ? 'text-zinc-300' : 'text-zinc-500'}`}>เครดิต</span>
                 </p>
                 <p className={`text-lg font-semibold mt-1 ${selected === pkg.id ? 'text-white' : 'text-zinc-900'}`}>
                   ฿{pkg.price_thb.toLocaleString()}
@@ -168,52 +148,30 @@ export default function CreditsPage() {
             ))}
           </div>
 
-          {/* Payment method + CTA */}
           {selected && (
             <div className="bg-white border border-zinc-200 rounded-xl p-5 space-y-4">
               <p className="font-semibold text-sm">วิธีชำระเงิน</p>
-
               <div className="flex gap-2">
-                <button
-                  onClick={() => setPaymentType('promptpay')}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium rounded-md border transition-colors ${
-                    paymentType === 'promptpay'
-                      ? 'border-black bg-black text-white'
-                      : 'border-zinc-200 text-zinc-600 hover:border-zinc-400'
-                  }`}
-                >
-                  <span>📱</span> PromptPay
-                </button>
-                <button
-                  onClick={() => setPaymentType('card')}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium rounded-md border transition-colors ${
-                    paymentType === 'card'
-                      ? 'border-black bg-black text-white'
-                      : 'border-zinc-200 text-zinc-600 hover:border-zinc-400'
-                  }`}
-                >
-                  <span>💳</span> บัตรเครดิต
-                </button>
+                {(['promptpay', 'card'] as const).map((type) => (
+                  <button
+                    key={type}
+                    onClick={() => setPaymentType(type)}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium rounded-md border transition-colors ${
+                      paymentType === type ? 'border-black bg-black text-white' : 'border-zinc-200 text-zinc-600 hover:border-zinc-400'
+                    }`}
+                  >
+                    {type === 'promptpay' ? '📱 PromptPay' : '💳 บัตรเครดิต'}
+                  </button>
+                ))}
               </div>
 
-              {paymentType === 'card' && (
-                <p className="text-xs text-zinc-400 bg-zinc-50 border border-zinc-100 rounded-md px-3 py-2">
-                  ระบบจะเปิดหน้าชำระเงินของ Omise — ข้อมูลบัตรของคุณปลอดภัย ไม่ผ่านเซิร์ฟเวอร์เรา
-                </p>
-              )}
-
               {error && (
-                <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-md px-3 py-2.5">
-                  {error}
-                </div>
+                <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-md px-3 py-2.5">{error}</div>
               )}
 
               <div className="flex items-center justify-between pt-1 border-t border-zinc-100">
                 <p className="text-sm text-zinc-500">
-                  รวม{' '}
-                  <span className="font-semibold text-zinc-900">
-                    ฿{selectedPkg?.price_thb.toLocaleString()}
-                  </span>
+                  รวม <span className="font-semibold text-zinc-900">฿{selectedPkg?.price_thb.toLocaleString()}</span>
                 </p>
                 <button
                   onClick={handlePayment}
@@ -221,13 +179,8 @@ export default function CreditsPage() {
                   className="flex items-center gap-2 bg-black text-white text-sm font-semibold px-5 py-2.5 rounded-md hover:opacity-80 transition-opacity disabled:opacity-50"
                 >
                   {loading ? (
-                    <>
-                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      กำลังดำเนินการ...
-                    </>
-                  ) : (
-                    'ชำระเงิน →'
-                  )}
+                    <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />กำลังดำเนินการ...</>
+                  ) : 'ชำระเงิน →'}
                 </button>
               </div>
             </div>
@@ -235,20 +188,10 @@ export default function CreditsPage() {
         </>
       )}
 
-      {/* Info */}
       <div className="mt-8 grid grid-cols-3 gap-4 text-center text-xs text-zinc-400">
-        <div>
-          <p className="text-base mb-1">♾️</p>
-          <p>ไม่หมดอายุ</p>
-        </div>
-        <div>
-          <p className="text-base mb-1">🔒</p>
-          <p>ปลอดภัย 100%</p>
-        </div>
-        <div>
-          <p className="text-base mb-1">⚡</p>
-          <p>เพิ่มทันที</p>
-        </div>
+        <div><p className="text-base mb-1">♾️</p><p>ไม่หมดอายุ</p></div>
+        <div><p className="text-base mb-1">🔒</p><p>ปลอดภัย 100%</p></div>
+        <div><p className="text-base mb-1">⚡</p><p>เพิ่มทันที</p></div>
       </div>
     </div>
   )

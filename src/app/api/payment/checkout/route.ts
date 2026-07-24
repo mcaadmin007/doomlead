@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import omise, { getPackage } from '@/lib/omise'
+import omise from '@/lib/omise'
+import { getPackage } from '@/lib/credit-packages'
 
 export async function POST(request: NextRequest) {
-  // Auth check
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
@@ -19,20 +19,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'แพ็กไม่ถูกต้อง' }, { status: 400 })
   }
 
-  const amountSatang = pkg.price_thb * 100 // Omise ใช้หน่วย satang (1 บาท = 100 satang)
+  const amountSatang = pkg.price_thb * 100
   const admin = createAdminClient()
 
   try {
-    // ── PromptPay ────────────────────────────────────────────
     if (payment_type === 'promptpay') {
-      // 1. สร้าง source
       const source = await (omise.sources as any).create({
         amount: amountSatang,
         currency: 'THB',
         type: 'promptpay',
       })
 
-      // 2. สร้าง charge
       const charge = await (omise.charges as any).create({
         amount: amountSatang,
         currency: 'THB',
@@ -45,7 +42,6 @@ export async function POST(request: NextRequest) {
         },
       })
 
-      // 3. บันทึก payment pending
       await admin.from('payments').insert({
         user_id: user.id,
         omise_charge_id: charge.id,
@@ -61,7 +57,6 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // ── Credit Card ──────────────────────────────────────────
     if (payment_type === 'card' && token) {
       const charge = await (omise.charges as any).create({
         amount: amountSatang,
@@ -75,7 +70,6 @@ export async function POST(request: NextRequest) {
       })
 
       if (charge.status === 'successful') {
-        // บันทึก payment success
         await admin.from('payments').insert({
           user_id: user.id,
           omise_charge_id: charge.id,
@@ -84,7 +78,6 @@ export async function POST(request: NextRequest) {
           status: 'success',
         })
 
-        // เพิ่มเครดิต
         await admin.rpc('add_credits', {
           p_user_id: user.id,
           p_amount: pkg.credits,
