@@ -9,13 +9,16 @@ const COUNT_OPTIONS = [10, 20, 50, 100, 200, 500]
 type Result = Record<string, unknown>
 
 // ── Searchable Input with Dropdown ──────────────────────────
-function ComboBox({ label, value, onChange, options, placeholder }: {
+function ComboBox({ label, value, onChange, options, placeholder, showAllOnOpen = false }: {
   label: string; value: string; onChange: (v: string) => void
-  options: string[]; placeholder: string
+  options: string[]; placeholder: string; showAllOnOpen?: boolean
 }) {
   const [open, setOpen] = useState(false)
+  const [filtering, setFiltering] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
-  const filtered = value
+  const filtered = showAllOnOpen && open && !filtering
+    ? options
+    : value
     ? options.filter(o => o.toLowerCase().includes(value.toLowerCase())).slice(0, 30)
     : options.slice(0, 30)
 
@@ -32,8 +35,8 @@ function ComboBox({ label, value, onChange, options, placeholder }: {
         <input
           type="text"
           value={value}
-          onChange={e => { onChange(e.target.value); setOpen(true) }}
-          onFocus={() => setOpen(true)}
+          onChange={e => { onChange(e.target.value); setFiltering(true); setOpen(true) }}
+          onFocus={() => { setFiltering(false); setOpen(true) }}
           placeholder={placeholder}
           className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm pr-8 outline-none focus:border-zinc-800 focus:ring-1 focus:ring-zinc-800 transition-all placeholder:text-zinc-400"
         />
@@ -47,7 +50,7 @@ function ComboBox({ label, value, onChange, options, placeholder }: {
         <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-zinc-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
           {filtered.map(opt => (
             <button key={opt} type="button"
-              onMouseDown={() => { onChange(opt); setOpen(false) }}
+              onMouseDown={() => { onChange(opt); setFiltering(false); setOpen(false) }}
               className={`w-full text-left px-3 py-2 text-sm transition-colors hover:bg-zinc-50 ${value === opt ? 'bg-zinc-50 font-medium' : ''}`}>
               {opt}
             </button>
@@ -234,6 +237,7 @@ export default function SearchPage() {
             onChange={handleCountryChange}
             placeholder="เสริชประเทศ..."
             options={COUNTRIES.map(c => c.name)}
+            showAllOnOpen
           />
         </div>
 
