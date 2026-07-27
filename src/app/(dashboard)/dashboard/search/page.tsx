@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { ENRICHMENT_PACKS, type EnrichmentPack } from '@/lib/outscraper'
 import { BUSINESS_CATEGORIES } from '@/lib/categories-data'
 import { COUNTRIES, type Country } from '@/lib/locations-data'
@@ -9,9 +10,10 @@ const COUNT_OPTIONS = [10, 20, 50, 100, 200, 500]
 type Result = Record<string, unknown>
 
 // ── Searchable Input with Dropdown ──────────────────────────
-function ComboBox({ label, value, onChange, options, placeholder, showAllOnOpen = false }: {
+function ComboBox({ label, value, onChange, options, placeholder, showAllOnOpen = false, optionIcons }: {
   label: string; value: string; onChange: (v: string) => void
   options: string[]; placeholder: string; showAllOnOpen?: boolean
+  optionIcons?: Record<string, string>
 }) {
   const [open, setOpen] = useState(false)
   const [filtering, setFiltering] = useState(false)
@@ -51,8 +53,9 @@ function ComboBox({ label, value, onChange, options, placeholder, showAllOnOpen 
           {filtered.map(opt => (
             <button key={opt} type="button"
               onMouseDown={() => { onChange(opt); setFiltering(false); setOpen(false) }}
-              className={`w-full text-left px-3 py-2 text-sm transition-colors hover:bg-zinc-50 ${value === opt ? 'bg-zinc-50 font-medium' : ''}`}>
-              {opt}
+              className={`w-full text-left px-3 py-2 text-sm transition-colors hover:bg-zinc-50 flex items-center gap-2 ${value === opt ? 'bg-zinc-50 font-medium' : ''}`}>
+              {optionIcons?.[opt] && <span className="text-base leading-none" aria-hidden="true">{optionIcons[opt]}</span>}
+              <span>{opt}</span>
             </button>
           ))}
         </div>
@@ -148,6 +151,7 @@ const PACK_STYLES: Record<EnrichmentPack, { idle: string; active: string; badge:
 
 // ── Main Page ────────────────────────────────────────────────
 export default function SearchPage() {
+  const router = useRouter()
   const [query, setQuery] = useState('')
   const [selectedCountry, setSelectedCountry] = useState<Country | null>(COUNTRIES[0])
   const [countryName, setCountryName] = useState('Thailand')
@@ -166,8 +170,7 @@ export default function SearchPage() {
   const handleCountryChange = (name: string) => {
     setCountryName(name)
     const found = COUNTRIES.find(c =>
-      c.name.toLowerCase() === name.toLowerCase() ||
-      c.nameTH === name
+      c.name.toLowerCase() === name.toLowerCase()
     )
     setSelectedCountry(found ?? null)
     setSelectedLocations([])
@@ -182,17 +185,24 @@ export default function SearchPage() {
     if (!query.trim()) { setError('กรุณาระบุประเภทธุรกิจ'); return }
     setLoading(true); setError(null); setResults([]); setSearched(false); setJobId(null)
     try {
-      const location = selectedLocations.length > 0
-        ? selectedLocations[0]
-        : (selectedCountry?.name ?? 'Thailand')
+      const locations = selectedLocations.length > 0
+        ? selectedLocations
+        : [selectedCountry?.name ?? 'Thailand']
       const res = await fetch('/api/scrape', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query, location, count, pack }),
+        body: JSON.stringify({
+          query,
+          country: selectedCountry?.name ?? 'Thailand',
+          locations,
+          count,
+          pack,
+        }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'เกิดข้อผิดพลาด')
       setResults(data.results ?? []); setJobId(data.job_id); setSearched(true)
+      router.refresh()
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด')
     } finally { setLoading(false) }
@@ -237,6 +247,7 @@ export default function SearchPage() {
             onChange={handleCountryChange}
             placeholder="เสริชประเทศ..."
             options={COUNTRIES.map(c => c.name)}
+            optionIcons={Object.fromEntries(COUNTRIES.map(c => [c.name, c.flag]))}
             showAllOnOpen
           />
         </div>
