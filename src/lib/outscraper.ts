@@ -1,7 +1,40 @@
 // Outscraper Google Maps API wrapper
-// Docs: https://docs.outscraper.com/api-reference/maps/
+// ทำงานเหมือน Google Maps Scraper บน app.outscraper.cloud
 
 const BASE_URL = 'https://api.app.outscraper.com'
+
+// ── Enrichment Packs (เหมือน Outscraper UI) ─────────────────
+export type EnrichmentPack = 'basic' | 'cold_calling' | 'cold_email'
+
+export const ENRICHMENT_PACKS: Record<EnrichmentPack, {
+  label: string
+  description: string
+  includes: string[]
+  credits_per_result: number
+  color: string
+}> = {
+  basic: {
+    label: 'ข้อมูลพื้นฐาน',
+    description: 'ชื่อ เบอร์โทร เว็บไซต์ ที่อยู่ เรตติ้ง',
+    includes: ['ชื่อธุรกิจ', 'เบอร์โทร', 'เว็บไซต์', 'ที่อยู่', 'เรตติ้ง', 'หมวดหมู่', 'พิกัด GPS'],
+    credits_per_result: 1,
+    color: 'zinc',
+  },
+  cold_calling: {
+    label: 'Cold Calling Pack',
+    description: 'เหมาะสำหรับการโทรหาลูกค้า',
+    includes: ['ทุกอย่างใน Basic', 'Phone Numbers Enricher', 'Company Insights', 'Social Media'],
+    credits_per_result: 2,
+    color: 'blue',
+  },
+  cold_email: {
+    label: 'Cold Email Pack',
+    description: 'เหมาะสำหรับ email outreach',
+    includes: ['ทุกอย่างใน Cold Calling', 'Email Address', 'ชื่อผู้ติดต่อ', 'Email Verifier', 'LinkedIn Profile'],
+    credits_per_result: 3,
+    color: 'green',
+  },
+}
 
 export interface OutscraperResult {
   query?: string
@@ -56,7 +89,7 @@ export interface OutscraperResult {
   logo?: string
   located_in?: string
   business_status?: string
-  working_hours?: string
+  working_hours?: unknown
   about?: string
   description?: string
   verified?: boolean
@@ -66,40 +99,40 @@ export interface OutscraperResult {
 }
 
 interface SearchParams {
-  query: string       // เช่น "ช่างไฟฟ้า กรุงเทพ"
-  limit: number       // จำนวนผลลัพธ์
-  includeEmail: boolean
-  language?: string
-  region?: string
+  query: string
+  location: string
+  limit: number
+  pack: EnrichmentPack
+  plainQuery?: boolean  // false = category mode, true = plain text search
 }
 
 /**
  * ค้นหาธุรกิจจาก Google Maps ผ่าน Outscraper API
- * Returns array of business results
+ * รองรับทั้ง category mode และ plain query mode
  */
 export async function searchGoogleMaps(params: SearchParams): Promise<OutscraperResult[]> {
-  const {
-    query,
-    limit,
-    includeEmail,
-    language = 'th',
-    region = 'TH',
-  } = params
+  const { query, location, limit, pack, plainQuery = true } = params
+
+  // Format query เหมือน Outscraper
+  // Plain query: "ช่างไฟฟ้า กรุงเทพ, Thailand"
+  // Category: "Electrician" + location แยก
+  const searchQuery = plainQuery
+    ? `${query} ${location}, Thailand`
+    : query
+
+  const enrichmentServices = getEnrichmentServices(pack)
 
   const searchParams = new URLSearchParams({
-    query,
+    query: searchQuery,
     limit: String(limit),
-    language,
-    region,
+    language: 'th',
+    region: 'TH',
     dropDuplicates: 'true',
-    async: 'false', // synchronous สำหรับ request ขนาดเล็ก
+    async: 'false',
+    ...(enrichmentServices.length > 0 && {
+      enrichment: enrichmentServices.join(','),
+    }),
   })
-
-  // ถ้าต้องการ email enrichment
-  if (includeEmail) {
-    searchParams.append('emailsExtractor', 'true')
-    searchParams.append('enrichment', 'emails_validator_api')
-  }
 
   const response = await fetch(
     `${BASE_URL}/maps/search-v3?${searchParams.toString()}`,
@@ -119,16 +152,12 @@ export async function searchGoogleMaps(params: SearchParams): Promise<Outscraper
 
   const json = await response.json()
 
-  // Outscraper returns: { data: [[result1, result2, ...]], status: "Success" }
   if (json.status === 'Success' && Array.isArray(json.data)) {
-    // data คือ array of arrays (1 array per query)
-    const results: OutscraperResult[] = json.data.flat()
-    return results
+    return (json.data as OutscraperResult[][]).flat()
   }
 
-  // handle pending/async response
+  // Async job — poll result
   if (json.id) {
-    // request กำลัง process — poll ผล
     return await pollResult(json.id)
   }
 
@@ -136,30 +165,47 @@ export async function searchGoogleMaps(params: SearchParams): Promise<Outscraper
 }
 
 /**
- * Poll ผลลัพธ์สำหรับ async requests
+ * Map enrichment pack → Outscraper enrichment service names
+ */
+function getEnrichmentServices(pack: EnrichmentPack): string[] {
+  switch (pack) {
+    case 'basic':
+      return []
+    case 'cold_calling':
+      return ['phones_enricher_api', 'company_insights_api']
+    case 'cold_email':
+      return [
+        'leads_contacts_api',
+        'emails_validator_api',
+        'company_insights_api',
+        'phones_enricher_api',
+      ]
+    default:
+      return []
+  }
+}
+
+/**
+ * Poll async job result
  */
 async function pollResult(requestId: string, maxRetries = 30): Promise<OutscraperResult[]> {
   for (let i = 0; i < maxRetries; i++) {
-    await new Promise((r) => setTimeout(r, 3000)) // รอ 3 วินาที
+    await new Promise((r) => setTimeout(r, 3000))
 
     const response = await fetch(`${BASE_URL}/requests/${requestId}`, {
-      headers: {
-        'X-API-KEY': process.env.OUTSCRAPER_API_KEY!,
-      },
+      headers: { 'X-API-KEY': process.env.OUTSCRAPER_API_KEY! },
     })
 
     const json = await response.json()
 
     if (json.status === 'Success' && Array.isArray(json.data)) {
-      return json.data.flat()
+      return (json.data as OutscraperResult[][]).flat()
     }
 
     if (json.status === 'Failed') {
       throw new Error(`Outscraper job failed: ${json.message}`)
     }
-
-    // ยัง pending/running — loop ต่อ
   }
 
-  throw new Error('Outscraper job timed out')
+  throw new Error('Outscraper job timed out after 90 seconds')
 }

@@ -1,26 +1,51 @@
 'use client'
 
 import { useState } from 'react'
-import type { JobResult } from '@/types'
+import { ENRICHMENT_PACKS, type EnrichmentPack } from '@/lib/outscraper'
 
-const COUNT_OPTIONS = [10, 20, 50, 100, 200]
+const COUNT_OPTIONS = [10, 20, 50, 100, 200, 500]
 
-function calcCredits(count: number, includeEmail: boolean) {
-  return count * (includeEmail ? 2 : 1)
+type Result = Record<string, unknown>
+
+const TABLE_COLS = [
+  { key: 'name',            label: 'ชื่อธุรกิจ',    always: true },
+  { key: 'phone',           label: 'เบอร์โทร',       always: true },
+  { key: 'email',           label: 'อีเมล',          pack: 'cold_email' },
+  { key: 'full_name',       label: 'ชื่อผู้ติดต่อ',  pack: 'cold_email' },
+  { key: 'contact_phone',   label: 'เบอร์ผู้ติดต่อ', pack: 'cold_calling' },
+  { key: 'website',         label: 'เว็บไซต์',       always: true },
+  { key: 'address',         label: 'ที่อยู่',         always: true },
+  { key: 'category',        label: 'ประเภท',          always: true },
+  { key: 'rating',          label: 'เรตติ้ง',         always: true },
+  { key: 'business_status', label: 'สถานะ',           always: true },
+  { key: 'company_linkedin',label: 'LinkedIn',        pack: 'cold_calling' },
+]
+
+const PACK_COLORS: Record<EnrichmentPack, string> = {
+  basic:        'border-zinc-200 bg-white',
+  cold_calling: 'border-blue-200 bg-blue-50',
+  cold_email:   'border-green-200 bg-green-50',
+}
+
+const PACK_SELECTED: Record<EnrichmentPack, string> = {
+  basic:        'border-black bg-black text-white',
+  cold_calling: 'border-blue-600 bg-blue-600 text-white',
+  cold_email:   'border-green-600 bg-green-600 text-white',
 }
 
 export default function SearchPage() {
   const [query, setQuery] = useState('')
   const [location, setLocation] = useState('')
   const [count, setCount] = useState(20)
-  const [includeEmail, setIncludeEmail] = useState(false)
+  const [pack, setPack] = useState<EnrichmentPack>('basic')
   const [loading, setLoading] = useState(false)
-  const [results, setResults] = useState<JobResult[]>([])
+  const [results, setResults] = useState<Result[]>([])
   const [jobId, setJobId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [searched, setSearched] = useState(false)
 
-  const creditCost = calcCredits(count, includeEmail)
+  const selectedPack = ENRICHMENT_PACKS[pack]
+  const creditCost = count * selectedPack.credits_per_result
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -34,11 +59,11 @@ export default function SearchPage() {
       const res = await fetch('/api/scrape', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query, location, count, include_email: includeEmail }),
+        body: JSON.stringify({ query, location, count, pack }),
       })
 
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'เกิดข้อผิดพลาด กรุณาลองใหม่')
+      if (!res.ok) throw new Error(data.error || 'เกิดข้อผิดพลาด')
 
       setResults(data.results ?? [])
       setJobId(data.job_id)
@@ -50,36 +75,34 @@ export default function SearchPage() {
     }
   }
 
-  const handleExport = () => {
-    if (!jobId) return
-    window.location.href = `/api/export?job_id=${jobId}`
-  }
+  const visibleCols = TABLE_COLS.filter(col =>
+    col.always ||
+    (col.pack === 'cold_calling' && (pack === 'cold_calling' || pack === 'cold_email')) ||
+    (col.pack === 'cold_email' && pack === 'cold_email')
+  )
 
   return (
-    <div className="max-w-5xl mx-auto px-6 py-8">
-      {/* Page Header */}
+    <div className="max-w-6xl mx-auto px-6 py-8">
+      {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold tracking-tight mb-1">ค้นหา Leads</h1>
-        <p className="text-sm text-zinc-500">
-          พิมพ์ประเภทธุรกิจและพื้นที่ แล้วรับรายชื่อพร้อมเบอร์โทร เว็บไซต์ อีเมลได้ทันที
-        </p>
+        <p className="text-sm text-zinc-500">ดึงข้อมูลธุรกิจจาก Google Maps พร้อมเลือก enrichment pack ที่ต้องการ</p>
       </div>
 
-      {/* Search Form */}
-      <form
-        onSubmit={handleSearch}
-        className="bg-white border border-zinc-200 rounded-xl p-5 mb-6 space-y-4"
-      >
-        {/* Inputs */}
+      <form onSubmit={handleSearch} className="bg-white border border-zinc-200 rounded-xl p-5 mb-6 space-y-5">
+
+        {/* Query + Location */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium mb-1.5">ประเภทธุรกิจ</label>
+            <label className="block text-sm font-medium mb-1.5">
+              ประเภทธุรกิจ / คำค้นหา
+            </label>
             <input
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               required
-              placeholder="เช่น ช่างไฟฟ้า, ร้านอาหาร, ทนายความ"
+              placeholder="เช่น ช่างไฟฟ้า, ร้านอาหาร, Doctor"
               className="w-full border border-zinc-200 rounded-md px-3 py-2.5 text-sm outline-none focus:border-zinc-900 transition-colors placeholder:text-zinc-400"
             />
           </div>
@@ -90,68 +113,87 @@ export default function SearchPage() {
               value={location}
               onChange={(e) => setLocation(e.target.value)}
               required
-              placeholder="เช่น กรุงเทพ, เชียงใหม่, ชลบุรี"
+              placeholder="เช่น กรุงเทพ, เชียงใหม่, Bangkok"
               className="w-full border border-zinc-200 rounded-md px-3 py-2.5 text-sm outline-none focus:border-zinc-900 transition-colors placeholder:text-zinc-400"
             />
           </div>
         </div>
 
-        {/* Count + Email Toggle */}
-        <div className="flex flex-wrap items-end gap-6">
-          {/* Count */}
-          <div>
-            <label className="block text-sm font-medium mb-2">จำนวนรายชื่อ</label>
-            <div className="flex gap-2">
-              {COUNT_OPTIONS.map((opt) => (
-                <button
-                  key={opt}
-                  type="button"
-                  onClick={() => setCount(opt)}
-                  className={`px-3 py-2 text-sm rounded-md border font-medium transition-colors ${
-                    count === opt
-                      ? 'bg-black text-white border-black'
-                      : 'bg-white text-zinc-700 border-zinc-200 hover:border-zinc-400'
-                  }`}
-                >
-                  {opt}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Include Email Toggle */}
-          <div className="flex items-center gap-2.5 pb-0.5">
-            <button
-              type="button"
-              role="switch"
-              aria-checked={includeEmail}
-              onClick={() => setIncludeEmail(!includeEmail)}
-              className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${
-                includeEmail ? 'bg-black' : 'bg-zinc-200'
-              }`}
-            >
-              <span
-                className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${
-                  includeEmail ? 'translate-x-5' : 'translate-x-0'
+        {/* Count */}
+        <div>
+          <label className="block text-sm font-medium mb-2">จำนวนผลลัพธ์สูงสุด</label>
+          <div className="flex flex-wrap gap-2">
+            {COUNT_OPTIONS.map((opt) => (
+              <button
+                key={opt}
+                type="button"
+                onClick={() => setCount(opt)}
+                className={`px-3 py-2 text-sm rounded-md border font-medium transition-colors ${
+                  count === opt
+                    ? 'bg-black text-white border-black'
+                    : 'bg-white text-zinc-700 border-zinc-200 hover:border-zinc-400'
                 }`}
-              />
-            </button>
-            <span
-              className="text-sm text-zinc-700 cursor-pointer select-none"
-              onClick={() => setIncludeEmail(!includeEmail)}
-            >
-              รวมอีเมล{' '}
-              <span className="text-zinc-400 text-xs">(2 เครดิต/รายชื่อ)</span>
-            </span>
+              >
+                {opt}
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* Footer: credit estimate + submit */}
-        <div className="flex items-center justify-between pt-1 border-t border-zinc-100 mt-2">
+        {/* Enrichment Packs */}
+        <div>
+          <label className="block text-sm font-medium mb-2">
+            Enrichment Pack
+            <span className="ml-2 text-xs text-zinc-400 font-normal">เลือก pack เพื่อดึงข้อมูลเพิ่มเติม</span>
+          </label>
+          <div className="grid grid-cols-3 gap-3">
+            {(Object.entries(ENRICHMENT_PACKS) as [EnrichmentPack, typeof ENRICHMENT_PACKS[EnrichmentPack]][]).map(([key, info]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setPack(key)}
+                className={`border rounded-lg p-3.5 text-left transition-all ${
+                  pack === key
+                    ? PACK_SELECTED[key]
+                    : PACK_COLORS[key] + ' hover:border-zinc-300'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className={`text-sm font-semibold ${pack === key ? 'text-white' : 'text-zinc-900'}`}>
+                    {info.label}
+                  </p>
+                  <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${
+                    pack === key ? 'bg-white/20 text-white' : 'bg-zinc-100 text-zinc-600'
+                  }`}>
+                    {info.credits_per_result} cr
+                  </span>
+                </div>
+                <p className={`text-xs mb-2 ${pack === key ? 'text-white/70' : 'text-zinc-500'}`}>
+                  {info.description}
+                </p>
+                <ul className="space-y-0.5">
+                  {info.includes.slice(0, 3).map((item) => (
+                    <li key={item} className={`text-xs flex items-center gap-1 ${pack === key ? 'text-white/80' : 'text-zinc-500'}`}>
+                      <span>✓</span> {item}
+                    </li>
+                  ))}
+                  {info.includes.length > 3 && (
+                    <li className={`text-xs ${pack === key ? 'text-white/60' : 'text-zinc-400'}`}>
+                      + {info.includes.length - 3} อื่นๆ
+                    </li>
+                  )}
+                </ul>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between pt-1 border-t border-zinc-100">
           <p className="text-sm text-zinc-500">
             ใช้{' '}
-            <span className="font-semibold text-zinc-900">{creditCost.toLocaleString()} เครดิต</span>{' '}
-            สำหรับการค้นหานี้
+            <span className="font-semibold text-zinc-900">{creditCost.toLocaleString()} เครดิต</span>
+            {' '}· {count} รายชื่อ × {selectedPack.credits_per_result} เครดิต
           </p>
           <button
             type="submit"
@@ -161,10 +203,16 @@ export default function SearchPage() {
             {loading ? (
               <>
                 <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                กำลังค้นหา...
+                กำลังดึงข้อมูล...
               </>
             ) : (
-              'ค้นหา →'
+              <>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                  <circle cx="12" cy="10" r="3" />
+                </svg>
+                Get Data
+              </>
             )}
           </button>
         </div>
@@ -183,12 +231,12 @@ export default function SearchPage() {
           <div className="flex items-center justify-between mb-4">
             <p className="text-sm font-medium text-zinc-700">
               พบ{' '}
-              <span className="text-zinc-900 font-semibold">{results.length} รายชื่อ</span>{' '}
-              สำหรับ &ldquo;{query}&rdquo; ใน {location}
+              <span className="font-semibold text-zinc-900">{results.length} รายชื่อ</span>
+              {' '}· &ldquo;{query}&rdquo; ใน {location}
             </p>
             {results.length > 0 && (
               <button
-                onClick={handleExport}
+                onClick={() => jobId && (window.location.href = `/api/export?job_id=${jobId}`)}
                 className="flex items-center gap-1.5 text-sm font-medium border border-zinc-200 bg-white px-3 py-1.5 rounded-md hover:bg-zinc-50 transition-colors"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -207,54 +255,44 @@ export default function SearchPage() {
                 <table className="w-full text-sm">
                   <thead className="bg-zinc-50 border-b border-zinc-200">
                     <tr>
-                      <th className="text-left px-4 py-3 font-medium text-zinc-500 text-xs">#</th>
-                      <th className="text-left px-4 py-3 font-medium text-zinc-500 text-xs">ชื่อธุรกิจ</th>
-                      <th className="text-left px-4 py-3 font-medium text-zinc-500 text-xs">เบอร์โทร</th>
-                      <th className="text-left px-4 py-3 font-medium text-zinc-500 text-xs">ที่อยู่</th>
-                      <th className="text-left px-4 py-3 font-medium text-zinc-500 text-xs">เว็บไซต์</th>
-                      {includeEmail && (
-                        <th className="text-left px-4 py-3 font-medium text-zinc-500 text-xs">อีเมล</th>
-                      )}
-                      <th className="text-left px-4 py-3 font-medium text-zinc-500 text-xs">เรตติ้ง</th>
+                      <th className="text-left px-3 py-3 text-xs font-medium text-zinc-500">#</th>
+                      {visibleCols.map(col => (
+                        <th key={col.key} className="text-left px-3 py-3 text-xs font-medium text-zinc-500 whitespace-nowrap">
+                          {col.label}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-100">
                     {results.map((r, i) => (
-                      <tr key={r.id} className="hover:bg-zinc-50/80 transition-colors">
-                        <td className="px-4 py-3 text-zinc-400 text-xs">{i + 1}</td>
-                        <td className="px-4 py-3 font-medium text-zinc-900">{r.name || '-'}</td>
-                        <td className="px-4 py-3 text-zinc-600">{r.phone || '-'}</td>
-                        <td className="px-4 py-3 text-zinc-500 max-w-[180px]">
-                          <span className="truncate block">{r.address || '-'}</span>
-                        </td>
-                        <td className="px-4 py-3">
-                          {r.website ? (
-                            <a
-                              href={r.website}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-blue-600 hover:underline text-xs truncate block max-w-[130px]"
-                            >
-                              {r.website.replace(/^https?:\/\//, '')}
-                            </a>
-                          ) : (
-                            <span className="text-zinc-400">-</span>
-                          )}
-                        </td>
-                        {includeEmail && (
-                          <td className="px-4 py-3 text-zinc-600 text-xs">{r.email || '-'}</td>
-                        )}
-                        <td className="px-4 py-3">
-                          {r.rating ? (
-                            <span className="flex items-center gap-1">
-                              <span className="text-amber-400 text-xs">★</span>
-                              <span className="text-zinc-700">{r.rating}</span>
-                              <span className="text-zinc-400 text-xs">({r.reviews_count ?? 0})</span>
-                            </span>
-                          ) : (
-                            <span className="text-zinc-400">-</span>
-                          )}
-                        </td>
+                      <tr key={i} className="hover:bg-zinc-50/80 transition-colors">
+                        <td className="px-3 py-3 text-zinc-400 text-xs">{i + 1}</td>
+                        {visibleCols.map(col => (
+                          <td key={col.key} className="px-3 py-3 max-w-[200px]">
+                            {col.key === 'website' && r[col.key] ? (
+                              <a href={String(r[col.key])} target="_blank" rel="noopener noreferrer"
+                                className="text-blue-600 hover:underline text-xs truncate block max-w-[140px]">
+                                {String(r[col.key]).replace(/^https?:\/\//, '')}
+                              </a>
+                            ) : col.key === 'rating' && r[col.key] ? (
+                              <span className="flex items-center gap-1">
+                                <span className="text-amber-400 text-xs">★</span>
+                                <span className="text-zinc-700">{String(r[col.key])}</span>
+                                {r.reviews_count && <span className="text-zinc-400 text-xs">({String(r.reviews_count)})</span>}
+                              </span>
+                            ) : col.key === 'business_status' ? (
+                              <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${
+                                r[col.key] === 'OPERATIONAL' ? 'bg-green-50 text-green-600' : 'bg-zinc-100 text-zinc-500'
+                              }`}>
+                                {r[col.key] === 'OPERATIONAL' ? 'เปิดอยู่' : String(r[col.key] ?? '—')}
+                              </span>
+                            ) : (
+                              <span className="text-zinc-700 text-xs truncate block max-w-[180px]">
+                                {String(r[col.key] ?? '—')}
+                              </span>
+                            )}
+                          </td>
+                        ))}
                       </tr>
                     ))}
                   </tbody>
