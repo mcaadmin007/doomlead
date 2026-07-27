@@ -238,7 +238,7 @@ export default function SearchPage() {
         </div>
 
         {/* Province selector (updates when country changes) */}
-        {selectedCountry && (
+        {selectedCountry && selectedCountry.states.length > 0 && (
           <LocationSelector
             country={selectedCountry}
             selected={selectedLocations}
