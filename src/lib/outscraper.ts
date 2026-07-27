@@ -7,23 +7,58 @@ export const ENRICHMENT_PACKS: Record<EnrichmentPack, {
   description: string
   includes: string[]
   credits_per_result: number
+  badge: string
 }> = {
   basic: {
     label: 'ข้อมูลพื้นฐาน',
-    description: 'ชื่อ เบอร์โทร เว็บไซต์ ที่อยู่ เรตติ้ง',
-    includes: ['ชื่อธุรกิจ', 'เบอร์โทร', 'เว็บไซต์', 'ที่อยู่', 'เรตติ้ง', 'หมวดหมู่', 'พิกัด GPS'],
+    description: 'ข้อมูล Google Maps มาตรฐาน',
+    badge: '1 เครดิต/รายชื่อ',
+    includes: [
+      'ชื่อธุรกิจ',
+      'เบอร์โทรหลัก',
+      'เว็บไซต์',
+      'ที่อยู่เต็ม (ถนน เมือง จังหวัด รหัสไปรษณีย์)',
+      'เรตติ้ง + จำนวนรีวิว',
+      'หมวดหมู่ธุรกิจ',
+      'พิกัด GPS (Latitude / Longitude)',
+      'สถานะธุรกิจ (เปิด/ปิด)',
+      'วันเวลาทำการ',
+    ],
     credits_per_result: 1,
   },
   cold_calling: {
     label: 'Cold Calling Pack',
-    description: 'เหมาะสำหรับการโทรหาลูกค้า',
-    includes: ['ทุกอย่างใน Basic', 'Phone Numbers Enricher', 'Company Insights', 'Social Media'],
+    description: 'เหมาะสำหรับทีมโทรหาลูกค้า',
+    badge: '2 เครดิต/รายชื่อ',
+    includes: [
+      'ทุกอย่างจาก Basic',
+      'Phone Numbers Enricher (เบอร์โทรเพิ่มเติม)',
+      'Company Insights (ข้อมูลเชิงลึกบริษัท)',
+      'LinkedIn บริษัท',
+      'Facebook บริษัท',
+      'Instagram บริษัท',
+      'X (Twitter) บริษัท',
+      'YouTube บริษัท',
+      'โดเมน + ชื่อบริษัททางการ',
+      'รูปภาพธุรกิจ + โลโก้',
+    ],
     credits_per_result: 2,
   },
   cold_email: {
     label: 'Cold Email Pack',
-    description: 'เหมาะสำหรับ email outreach',
-    includes: ['ทุกอย่างใน Cold Calling', 'Email Address', 'ชื่อผู้ติดต่อ', 'Email Verifier', 'LinkedIn'],
+    description: 'เหมาะสำหรับ Email Outreach',
+    badge: '3 เครดิต/รายชื่อ',
+    includes: [
+      'ทุกอย่างจาก Cold Calling',
+      'Email Address (อีเมลบริษัท)',
+      'Email Verifier (ยืนยันความถูกต้องของอีเมล)',
+      'ชื่อผู้ติดต่อ (Full Name / First / Last)',
+      'ตำแหน่งงานผู้ติดต่อ (Title)',
+      'เบอร์โทรผู้ติดต่อ',
+      'LinkedIn ผู้ติดต่อ',
+      'Facebook ผู้ติดต่อ',
+      'Instagram ผู้ติดต่อ',
+    ],
     credits_per_result: 3,
   },
 }
@@ -39,12 +74,11 @@ export interface OutscraperResult {
   full_name?: string; first_name?: string; last_name?: string; title?: string
   email?: string; contact_phone?: string; contact_phones?: string
   contact_linkedin?: string; contact_facebook?: string; contact_instagram?: string
-  contact_x?: string; website_title?: string; website_description?: string
   latitude?: number; longitude?: number; time_zone?: string; plus_code?: string
   rating?: number; reviews?: number; reviews_link?: string
-  photos_count?: number; photo?: string; street_view?: string; logo?: string
-  located_in?: string; business_status?: string; working_hours?: unknown
-  about?: string; description?: string; verified?: boolean
+  photos_count?: number; photo?: string; logo?: string
+  business_status?: string; working_hours?: unknown
+  description?: string; verified?: boolean
   place_id?: string; google_id?: string; cid?: string
 }
 
@@ -60,7 +94,7 @@ export async function searchGoogleMaps(params: {
   query: string; location: string; limit: number; pack: EnrichmentPack
 }): Promise<OutscraperResult[]> {
   const { query, location, limit, pack } = params
-  const searchQuery = `${query} ${location}, Thailand`
+  const searchQuery = `${query} ${location}`
   const enrichment = getEnrichmentServices(pack)
 
   const searchParams = new URLSearchParams({
