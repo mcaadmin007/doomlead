@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getCurrentUser } from '@/lib/supabase/auth'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 
@@ -16,12 +17,14 @@ function formatDate(d: string) {
 }
 
 export default async function HistoryPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getCurrentUser()
   if (!user) redirect('/login')
 
+  const supabase = await createClient()
   const { data: jobs } = await supabase
-    .from('scrape_jobs').select('*').eq('user_id', user.id)
+    .from('scrape_jobs')
+    .select('id, query, location, count_requested, count_returned, include_email, credits_used, status, created_at')
+    .eq('user_id', user.id)
     .order('created_at', { ascending: false }).limit(100)
 
   const totalJobs = jobs?.length ?? 0

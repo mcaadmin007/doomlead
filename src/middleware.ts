@@ -25,19 +25,22 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  // Verify the JWT locally when possible. Unlike getUser(), this avoids an
+  // Auth server round-trip on every navigation and every route prefetch.
+  const { data: authData } = await supabase.auth.getClaims()
+  const isAuthenticated = Boolean(authData?.claims?.sub)
 
   const { pathname } = request.nextUrl
 
   // Redirect unauthenticated users away from dashboard
-  if (!user && pathname.startsWith('/dashboard')) {
+  if (!isAuthenticated && pathname.startsWith('/dashboard')) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
   }
 
   // Redirect authenticated users away from auth pages
-  if (user && (pathname === '/login' || pathname === '/register')) {
+  if (isAuthenticated && (pathname === '/login' || pathname === '/register')) {
     const url = request.nextUrl.clone()
     url.pathname = '/dashboard/search'
     return NextResponse.redirect(url)
@@ -55,6 +58,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
