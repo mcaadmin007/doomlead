@@ -1,17 +1,19 @@
 import { NextResponse, type NextRequest } from 'next/server'
 
 /**
- * Lightweight middleware — no async Supabase calls.
- * Auth is verified by checking for the Supabase session cookie.
- * The actual user validation happens in the dashboard layout server component.
+ * Lightweight sync middleware — no Supabase SDK, no network calls.
+ * Checks for ANY Supabase session cookie (including chunked tokens .0/.1).
  */
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Check for Supabase auth session cookie (sb-{ref}-auth-token)
+  // Supabase session cookies can be:
+  // - sb-{ref}-auth-token          (full token)
+  // - sb-{ref}-auth-token.0        (chunked)
+  // - sb-{ref}-auth-token.1
   const cookies = request.cookies.getAll()
   const hasSession = cookies.some(
-    c => c.name.startsWith('sb-') && c.name.endsWith('-auth-token') && c.value
+    c => c.name.startsWith('sb-') && c.name.includes('auth-token') && c.value.length > 0
   )
 
   // Redirect unauthenticated users away from dashboard
@@ -24,7 +26,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/dashboard/search', request.url))
   }
 
-  // Redirect /dashboard → /dashboard/search
+  // /dashboard → /dashboard/search
   if (pathname === '/dashboard') {
     return NextResponse.redirect(new URL('/dashboard/search', request.url))
   }
