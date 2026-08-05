@@ -1,59 +1,35 @@
-import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-export async function middleware(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({ request })
-
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
-          )
-          supabaseResponse = NextResponse.next({ request })
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          )
-        },
-      },
-    }
-  )
-
-  // Verify the JWT locally when possible. Unlike getUser(), this avoids an
-  // Auth server round-trip on every navigation and every route prefetch.
-  const { data: authData } = await supabase.auth.getClaims()
-  const isAuthenticated = Boolean(authData?.claims?.sub)
-
+/**
+ * Lightweight middleware — no async Supabase calls.
+ * Auth is verified by checking for the Supabase session cookie.
+ * The actual user validation happens in the dashboard layout server component.
+ */
+export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
+  // Check for Supabase auth session cookie (sb-{ref}-auth-token)
+  const cookies = request.cookies.getAll()
+  const hasSession = cookies.some(
+    c => c.name.startsWith('sb-') && c.name.endsWith('-auth-token') && c.value
+  )
+
   // Redirect unauthenticated users away from dashboard
-  if (!isAuthenticated && pathname.startsWith('/dashboard')) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/login'
-    return NextResponse.redirect(url)
+  if (!hasSession && pathname.startsWith('/dashboard')) {
+    return NextResponse.redirect(new URL('/login', request.url))
   }
 
   // Redirect authenticated users away from auth pages
-  if (isAuthenticated && (pathname === '/login' || pathname === '/register')) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/dashboard/search'
-    return NextResponse.redirect(url)
+  if (hasSession && (pathname === '/login' || pathname === '/register')) {
+    return NextResponse.redirect(new URL('/dashboard/search', request.url))
   }
 
   // Redirect /dashboard → /dashboard/search
   if (pathname === '/dashboard') {
-    const url = request.nextUrl.clone()
-    url.pathname = '/dashboard/search'
-    return NextResponse.redirect(url)
+    return NextResponse.redirect(new URL('/dashboard/search', request.url))
   }
 
-  return supabaseResponse
+  return NextResponse.next()
 }
 
 export const config = {
