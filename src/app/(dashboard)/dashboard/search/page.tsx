@@ -153,7 +153,9 @@ const PACK_STYLES: Record<EnrichmentPack, { idle: string; active: string; badge:
 export default function SearchPage() {
   const router = useRouter()
   const [query, setQuery] = useState('')
-  const [selectedCountry, setSelectedCountry] = useState<Country | null>(COUNTRIES[0])
+  const [selectedCountry, setSelectedCountry] = useState<Country | null>(
+    COUNTRIES.find(c => c.name === 'Thailand') ?? null
+  )
   const [countryName, setCountryName] = useState('Thailand')
   const [selectedLocations, setSelectedLocations] = useState<string[]>([])
   const [count, setCount] = useState(20)
@@ -217,7 +219,7 @@ export default function SearchPage() {
       { key: 'full_name', label: 'ชื่อผู้ติดต่อ' },
     ] : []),
     { key: 'website', label: 'เว็บไซต์' },
-    { key: 'address', label: 'ที่อยู่' },
+    { key: 'country', label: 'ประเทศ' },
     { key: 'category', label: 'ประเภท' },
     { key: 'rating', label: 'เรตติ้ง' },
     { key: 'business_status', label: 'สถานะ' },
