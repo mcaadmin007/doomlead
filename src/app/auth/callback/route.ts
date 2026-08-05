@@ -2,11 +2,6 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 
-/**
- * GET /auth/callback
- * Supabase จะ redirect มาที่นี่หลังจาก Google OAuth สำเร็จ
- * ต้อง add URL นี้ใน Supabase Dashboard → Authentication → URL Configuration → Redirect URLs
- */
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
@@ -20,9 +15,7 @@ export async function GET(request: NextRequest) {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
         cookies: {
-          getAll() {
-            return cookieStore.getAll()
-          },
+          getAll() { return cookieStore.getAll() },
           setAll(cookiesToSet) {
             cookiesToSet.forEach(({ name, value, options }) =>
               cookieStore.set(name, value, options)
@@ -34,10 +27,18 @@ export async function GET(request: NextRequest) {
 
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
-      return NextResponse.redirect(`${origin}${next}`)
+      // บันทึกเวลา login เพื่อ enforce 24-hour session
+      const response = NextResponse.redirect(`${origin}${next}`)
+      response.cookies.set('dl_session_start', Date.now().toString(), {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 60 * 60 * 24 * 30, // cookie อยู่ได้ 30 วัน แต่ middleware จะ enforce 24 ชม.
+        path: '/',
+      })
+      return response
     }
   }
 
-  // มี error → กลับไปหน้า login พร้อม error message
   return NextResponse.redirect(`${origin}/login?error=กรุณาลองเข้าสู่ระบบใหม่อีกครั้ง`)
 }

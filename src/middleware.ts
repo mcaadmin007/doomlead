@@ -1,27 +1,34 @@
 import { NextResponse, type NextRequest } from 'next/server'
 
-/**
- * Lightweight sync middleware — no Supabase SDK, no network calls.
- * Checks for ANY Supabase session cookie (including chunked tokens .0/.1).
- */
+const SESSION_MAX_HOURS = 24
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Supabase session cookies can be:
-  // - sb-{ref}-auth-token          (full token)
-  // - sb-{ref}-auth-token.0        (chunked)
-  // - sb-{ref}-auth-token.1
+  // ตรวจสอบ Supabase session cookie
   const cookies = request.cookies.getAll()
   const hasSession = cookies.some(
     c => c.name.startsWith('sb-') && c.name.includes('auth-token') && c.value.length > 0
   )
 
-  // Redirect unauthenticated users away from dashboard
+  // ตรวจสอบ session อายุไม่เกิน 24 ชั่วโมง
+  if (hasSession && pathname.startsWith('/dashboard')) {
+    const sessionStart = request.cookies.get('dl_session_start')?.value
+    if (sessionStart) {
+      const hoursElapsed = (Date.now() - parseInt(sessionStart, 10)) / (1000 * 60 * 60)
+      if (hoursElapsed > SESSION_MAX_HOURS) {
+        // Session เกิน 24 ชม. → บังคับ logout
+        return NextResponse.redirect(new URL('/api/auth/logout', request.url))
+      }
+    }
+  }
+
+  // Redirect unauthenticated → login
   if (!hasSession && pathname.startsWith('/dashboard')) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  // Redirect authenticated users away from auth pages
+  // Redirect authenticated → dashboard
   if (hasSession && (pathname === '/login' || pathname === '/register')) {
     return NextResponse.redirect(new URL('/dashboard/search', request.url))
   }
