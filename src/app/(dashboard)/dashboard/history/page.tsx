@@ -79,7 +79,18 @@ export default async function HistoryPage() {
                     <tr key={job.id} className="hover:bg-zinc-50/60 transition-colors">
                       <td className="px-4 py-3 text-zinc-400 text-xs whitespace-nowrap">{formatDate(job.created_at)}</td>
                       <td className="px-4 py-3 font-medium text-zinc-900">{job.query}</td>
-                      <td className="px-4 py-3 text-zinc-600">{job.location}</td>
+                      <td className="px-4 py-3 text-zinc-600 max-w-[160px]">
+                        {(() => {
+                          const parts = (job.location ?? '').split(',')
+                          if (parts.length === 1) return parts[0].trim()
+                          return (
+                            <span title={job.location}>
+                              {parts[0].trim()}
+                              <span className="text-zinc-400 ml-1">+{parts.length - 1}</span>
+                            </span>
+                          )
+                        })()}
+                      </td>
                       <td className="px-4 py-3 text-zinc-600">
                         {job.count_returned ?? 0}<span className="text-zinc-400">/{job.count_requested}</span>
                       </td>
